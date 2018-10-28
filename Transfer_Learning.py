@@ -165,5 +165,121 @@ def train_model(model, criterion, optimizer, lr_scheduler, num_epochs=100):
     print('Best val Acc: {:4f}'.format(best_acc))
     print('returning and looping back')
     return best_model
+def visualize_model(model, num_images=6):
+    was_training = model.training
+    model.eval()
+    images_so_far = 0
+    fig = plt.figure()
+
+    with torch.no_grad():
+        for i, (inputs, labels) in enumerate(dset_loaders['val']):
+            inputs = Variable(inputs)
+            labels = Variable(labels)
+
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+
+            for j in range(inputs.size()[0]):
+                images_so_far += 1
+                ax = plt.subplot(num_images//2, 2, images_so_far)
+                ax.axis('off')
+                ax.set_title('predicted: {}'.format(class_names[preds[j]]))
+                imshow(inputs.cpu().data[j])
+
+                if images_so_far == num_images:
+                    model.train(mode=was_training)
+                    return
+        model.train(mode=was_training)
+
+
+# In[5]:
+
+
+# This function changes the learning rate over the training model.
+def exp_lr_scheduler(optimizer, epoch, init_lr=BASE_LR, lr_decay_epoch=EPOCH_DECAY):
+    """Decay learning rate by a factor of DECAY_WEIGHT every lr_decay_epoch epochs."""
+    lr = init_lr * (DECAY_WEIGHT**(epoch // lr_decay_epoch))
+
+    if epoch % lr_decay_epoch == 0:
+        print('LR is set to {}'.format(lr))
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+    return optimizer
+
+
+
+# In[6]:
+
+
+model_ft = models.resnet18(pretrained=True)
+num_ftrs = model_ft.fc.in_features
+model_ft.fc = nn.Linear(num_ftrs, NUM_CLASSES)
+
+
+criterion = nn.CrossEntropyLoss()
+
+if use_gpu:
+    criterion.cuda()
+    model_ft.cuda()
+
+optimizer_ft = optim.RMSprop(model_ft.parameters(), lr=0.0001)
+
+
+
+# Run the functions and save the best model in the function model_ft.
+model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
+                       num_epochs=3)
+
+# Save model
+
+
+# In[40]:
+
+
+
+torch.save(model_ft, "modelnew")
+
+
+# In[41]:
+
+
+the_model = torch.load("modelnew")
+
+
+# In[42]:
+
+
+from PIL import Image
+import numpy as np
+img = Image.open( "patches_246.jpg" )
+img.load()
+image=img
+p = transforms.Compose([
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+img = p(img)
+img=img.view(1,3,224,224)
+
+
+# In[43]:
+
+
+the_model.eval()
+y_ = the_model(img)
+_, y_label_ = torch.max(y_, 1)
+
+
+# In[44]:
+
+
+plt.imshow(image,cmap='gray')
+plt.show()
+print(dset_classes[y_label_])
+
 
 
